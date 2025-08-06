@@ -1,17 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    Alert,
     FlatList,
     Image,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 import SearchBar from '../../components/common/SearchBar';
 import { color_1 } from '../../constants/colors';
-import { Document, Document_data, categories_data } from '../../data/mockData';
+import type { AppDispatch, RootState } from '../../store';
+import { fetchMangaByCategory } from '../../store/slices/bookSlice';
 
 interface DocumentListScreenProps {
   route: {
@@ -24,32 +25,44 @@ interface DocumentListScreenProps {
 
 const DocumentListScreen: React.FC<DocumentListScreenProps> = ({ route, navigation }) => {
   const { categoryId } = route.params;
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [filteredDocuments, setFilteredDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'title' | 'author'>('title');
+  
+  const dispatch = useDispatch<AppDispatch>();
+  const { 
+    categoryManga, 
+    categoryMangaLoading, 
+    categories, 
+    error 
+  } = useSelector((state: RootState) => state.books);
 
-  const categoryTitle = categories_data.find(cat => cat.id === categoryId)?.title || 'Tài liệu';
+  // Get category info
+  const category = categories.find(cat => cat.id === categoryId);
+  const categoryTitle = category?.title || 'Tài liệu';
 
   useEffect(() => {
-    // Filter documents by category
-    const categoryDocuments = Document_data.filter(doc => doc.categoryId === categoryId);
-    setDocuments(categoryDocuments);
-    setFilteredDocuments(categoryDocuments);
-  }, [categoryId]);
+    // Fetch manga for this category
+    console.log('📂 Fetching manga for category:', categoryId);
+    dispatch(fetchMangaByCategory({ categoryId, limit: 50 }));
+  }, [dispatch, categoryId]);
 
-  useEffect(() => {
-    // Filter documents based on search query
-    let filtered = documents;
-    
+  // Filter and sort manga
+  const filteredManga = React.useMemo(() => {
+    if (!categoryManga || categoryManga.length === 0) {
+      return [];
+    }
+
+    let filtered = [...categoryManga]; // Create a copy to avoid read-only array issue
+
+    // Search filter
     if (searchQuery.trim()) {
-      filtered = documents.filter(doc =>
-        doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doc.author.toLowerCase().includes(searchQuery.toLowerCase())
+      filtered = categoryManga.filter(manga =>
+        manga.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        manga.author.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Sort documents
+    // Sort
     filtered = filtered.sort((a, b) => {
       if (sortBy === 'title') {
         return a.title.localeCompare(b.title);
@@ -58,35 +71,30 @@ const DocumentListScreen: React.FC<DocumentListScreenProps> = ({ route, navigati
       }
     });
 
-    setFilteredDocuments(filtered);
-  }, [searchQuery, documents, sortBy]);
+    return filtered;
+  }, [searchQuery, categoryManga, sortBy]);
 
-  const handleDocumentPress = (document: Document) => {
-    if (document.access === 'VIP') {
-      Alert.alert(
-        'Tài liệu VIP',
-        'Tài liệu này chỉ dành cho thành viên VIP. Bạn có muốn nâng cấp tài khoản?',
-        [
-          { text: 'Hủy', style: 'cancel' },
-          { text: 'Nâng cấp', onPress: () => {/* Navigate to upgrade - remove in production */} },
-        ]
-      );
-    } else {
-      navigation.navigate('Reader', { document });
-    }
+  const handleDocumentPress = (manga: any) => {
+    // Navigate to Reader with manga data
+    navigation.navigate('Reader', { 
+      document: manga, 
+      documentType: 'manga' 
+    });
   };
-
   const toggleSort = () => {
     setSortBy(prev => prev === 'title' ? 'author' : 'title');
   };
 
-  const renderDocument = ({ item }: { item: Document }) => (
+  const renderManga = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.documentCard}
       onPress={() => handleDocumentPress(item)}
       activeOpacity={0.8}
     >
-      <Image source={{ uri: item.image }} style={styles.documentImage} />
+      <Image 
+        source={{ uri: item.image || 'https://placehold.co/120x160/3498db/ffffff?text=No+Cover' }} 
+        style={styles.documentImage} 
+      />
       <View style={styles.documentInfo}>
         <Text style={styles.documentTitle} numberOfLines={2}>{item.title}</Text>
         <Text style={styles.documentAuthor}>Tác giả: {item.author}</Text>
@@ -94,15 +102,12 @@ const DocumentListScreen: React.FC<DocumentListScreenProps> = ({ route, navigati
           {item.description}
         </Text>
         <View style={styles.accessContainer}>
-          <Text style={[
-            styles.accessText,
-            item.access === 'VIP' ? styles.vipText : styles.freeText
-          ]}>
-            {item.access}
+          <Text style={[styles.accessText, styles.freeText]}>
+            Manga
           </Text>
-          {item.access === 'VIP' && (
-            <Ionicons name="diamond" size={16} color={color_1.primary} />
-          )}
+          <Text style={styles.accessText}>
+            📖 {item.totalChapters || 0} chương
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -131,24 +136,28 @@ const DocumentListScreen: React.FC<DocumentListScreenProps> = ({ route, navigati
 
       <View style={styles.sortInfo}>
         <Text style={styles.sortText}>
-          Sắp xếp theo: {sortBy === 'title' ? 'Tên tài liệu' : 'Tác giả'}
+          Sắp xếp theo: {sortBy === 'title' ? 'Tên manga' : 'Tác giả'}
         </Text>
         <Text style={styles.countText}>
-          {filteredDocuments.length} tài liệu
+          {filteredManga.length} manga
         </Text>
       </View>
 
-      {filteredDocuments.length === 0 ? (
+      {categoryMangaLoading ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Đang tải manga...</Text>
+        </View>
+      ) : filteredManga.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="document-outline" size={64} color={color_1.textSecondary} />
           <Text style={styles.emptyText}>
-            {searchQuery ? 'Không tìm thấy tài liệu nào' : 'Chưa có tài liệu trong danh mục này'}
+            {searchQuery ? 'Không tìm thấy manga nào' : 'Chưa có manga trong danh mục này'}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={filteredDocuments}
-          renderItem={renderDocument}
+          data={filteredManga}
+          renderItem={renderManga}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContainer}

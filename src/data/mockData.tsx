@@ -4,6 +4,7 @@ export interface Category {
   id: string;
   title: string;
   image: string;
+  icon?: string;
 }
 
 export interface Ad {
@@ -49,18 +50,18 @@ export interface UserProfile {
 // --- DATA ---
 
 export const categories_data: Category[] = [
-  { id: '1', title: 'Truyện Tranh', image: 'https://placehold.co/300x300/3498db/ffffff?text=Comic' },
-  { id: '2', title: 'Khóa Học', image: 'https://placehold.co/300x300/e74c3c/ffffff?text=Course' },
-  { id: '3', title: 'Khoa Học', image: 'https://placehold.co/300x300/2ecc71/ffffff?text=Science' },
-  { id: '4', title: 'Lịch Sử', image: 'https://placehold.co/300x300/f1c40f/ffffff?text=History' },
-  { id: '5', title: 'Văn Học', image: 'https://placehold.co/300x300/9b59b6/ffffff?text=Literature' },
-  { id: '6', title: 'Kinh Tế', image: 'https://placehold.co/300x300/e67e22/ffffff?text=Economy' },
-  { id: '7', title: 'Nghệ Thuật', image: 'https://placehold.co/300x300/1abc9c/ffffff?text=Art' },
-  { id: '8', title: 'Âm Nhạc', image: 'https://placehold.co/300x300/34495e/ffffff?text=Music' },
-  { id: '9', title: 'Đời Sống', image: 'https://placehold.co/300x300/7f8c8d/ffffff?text=Lifestyle' },
-  { id: '10', title: 'Thể Thao', image: 'https://placehold.co/300x300/c0392b/ffffff?text=Sports' },
-  { id: '11', title: 'Công Nghệ', image: 'https://placehold.co/300x300/8e44ad/ffffff?text=Tech' },
-  { id: '12', title: 'Ẩm Thực', image: 'https://placehold.co/300x300/27ae60/ffffff?text=Food' },
+  { id: '1', title: 'Truyện Tranh', image: 'https://placehold.co/300x300/3498db/ffffff?text=Comic', icon: '📚' },
+  { id: '2', title: 'Khóa Học', image: 'https://placehold.co/300x300/e74c3c/ffffff?text=Course', icon: '🎓' },
+  { id: '3', title: 'Khoa Học', image: 'https://placehold.co/300x300/2ecc71/ffffff?text=Science', icon: '🔬' },
+  { id: '4', title: 'Lịch Sử', image: 'https://placehold.co/300x300/f1c40f/ffffff?text=History', icon: '📜' },
+  { id: '5', title: 'Văn Học', image: 'https://placehold.co/300x300/9b59b6/ffffff?text=Literature', icon: '📖' },
+  { id: '6', title: 'Kinh Tế', image: 'https://placehold.co/300x300/e67e22/ffffff?text=Economy', icon: '💰' },
+  { id: '7', title: 'Nghệ Thuật', image: 'https://placehold.co/300x300/1abc9c/ffffff?text=Art', icon: '🎨' },
+  { id: '8', title: 'Âm Nhạc', image: 'https://placehold.co/300x300/34495e/ffffff?text=Music', icon: '🎵' },
+  { id: '9', title: 'Đời Sống', image: 'https://placehold.co/300x300/7f8c8d/ffffff?text=Lifestyle', icon: '🏠' },
+  { id: '10', title: 'Thể Thao', image: 'https://placehold.co/300x300/c0392b/ffffff?text=Sports', icon: '⚽' },
+  { id: '11', title: 'Công Nghệ', image: 'https://placehold.co/300x300/8e44ad/ffffff?text=Tech', icon: '💻' },
+  { id: '12', title: 'Ẩm Thực', image: 'https://placehold.co/300x300/27ae60/ffffff?text=Food', icon: '🍽️' },
 ];
 
 export const Document_data: Document[] = [

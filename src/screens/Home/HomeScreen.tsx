@@ -4,16 +4,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDispatch, useSelector } from 'react-redux';
 import ErrorDisplay from '../../components/common/ErrorDisplay';
 import SearchBar from '../../components/common/SearchBar';
+import ApiTest from '../../components/dev/ApiTest';
 import DevTools from '../../components/dev/DevTools';
 import { canUseApiMonitor, canUseApiTesting, canUseErrorTesting, secureError } from '../../config/debugConfig';
 import { color_1 } from '../../constants/colors';
-import { Ad, ads_data, categories_data, Category } from '../../data/mockData';
+import { Ad, ads_data } from '../../data/mockData';
 import type { AppDispatch, RootState } from '../../store';
-import { fetchBooks } from '../../store/slices/bookSlice';
+import { fetchBooks, fetchCategories, fetchMangaBooks } from '../../store/slices/bookSlice';
+import LoggerService from '../../utils/logger';
 
 // Conditional imports for debug features
 const testApiConnection = canUseApiTesting() ? require('../../utils/apiTest').testApiConnection : null;
 const runAllErrorTests = canUseErrorTesting() ? require('../../utils/errorTesting').runAllErrorTests : null;
+
+interface Category {
+  id: string;
+  title: string;
+  image: string;
+  icon: string;
+}
 
 interface HomeScreenProps {
   navigation: any;
@@ -23,16 +32,60 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [searchText, setSearchText] = useState('');
   const [apiTestError, setApiTestError] = useState<any>(null);
   const [showDevTools, setShowDevTools] = useState(false);
+  const [showApiTest, setShowApiTest] = useState(false);
   
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
-  const { books, loading, error } = useSelector((state: RootState) => state.books);
+  const { 
+    books, 
+    mangaBooks, 
+    categories, 
+    loading, 
+    mangaLoading, 
+    categoriesLoading, 
+    error 
+  } = useSelector((state: RootState) => state.books);
   
   const isVip = user?.role === 'VIP' || user?.role === 'ADMIN';
 
+  // Debug logging
+  LoggerService.log('🔍 HomeScreen render - Current state:', {
+    booksCount: books.length,
+    mangaBooksCount: mangaBooks.length,
+    categoriesCount: categories.length,
+    loading,
+    mangaLoading,
+    categoriesLoading,
+    error
+  });
+
   useEffect(() => {
-    // Fetch latest books on component mount
-    dispatch(fetchBooks({ page: 0, size: 10, sort: 'createdAt,desc' }));
+    // Fetch latest books, manga, and categories on component mount
+    LoggerService.log('🚀 HomeScreen useEffect - Starting data fetch...');
+    
+    dispatch(fetchBooks({ page: 0, size: 10, sort: 'createdAt,desc' }))
+      .then((result) => {
+        LoggerService.log('📚 Books fetch result:', result);
+      })
+      .catch((error) => {
+        LoggerService.error('❌ Books fetch error:', error);
+      });
+    
+    dispatch(fetchMangaBooks({ limit: 20 }))
+      .then((result) => {
+        LoggerService.log('📖 Manga fetch result:', result);
+      })
+      .catch((error) => {
+        LoggerService.error('❌ Manga fetch error:', error);
+      });
+    
+    dispatch(fetchCategories())
+      .then((result) => {
+        LoggerService.log('🏷️ Categories fetch result:', result);
+      })
+      .catch((error) => {
+        LoggerService.error('❌ Categories fetch error:', error);
+      });
   }, [dispatch]);
 
   const handleApiTest = async () => {
@@ -80,6 +133,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     </View>
   );
 
+  const renderManga = ({ item }: { item: any }) => (
+    <TouchableOpacity 
+      style={styles.mangaItem} 
+      onPress={() => navigation.navigate('Reader', { document: item, documentType: 'manga' })}
+    >
+      <Image 
+        source={{ uri: item.image || 'https://placehold.co/120x160/3498db/ffffff?text=No+Cover' }} 
+        style={styles.mangaImage} 
+        onError={() => {
+          // Fallback image on error
+        }}
+      />
+      <View style={styles.mangaInfo}>
+        <Text style={styles.mangaTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.mangaAuthor} numberOfLines={1}>{item.author}</Text>
+        <Text style={styles.mangaChapters}>📖 {item.totalChapters || item.chapters?.length || 0} chương</Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -121,6 +194,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     <Text style={styles.testButtonText}>🔧 Monitor</Text>
                   </TouchableOpacity>
                 )}
+                
+                {canUseApiTesting() && (
+                  <TouchableOpacity 
+                    style={styles.apiTestButton} 
+                    onPress={() => setShowApiTest(true)}
+                  >
+                    <Text style={styles.testButtonText}>🧪 API Test</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               
               {canUseApiTesting() && apiTestError && (
@@ -152,14 +234,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           {/* Danh mục nổi bật */}
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Thể loại nổi bật</Text>
-            <FlatList
-              data={categories_data.slice(0, 6)} // Hiển thị 6 danh mục đầu tiên
-              renderItem={renderFeaturedCategory}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalList}
-            />
+            {categoriesLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Đang tải danh mục...</Text>
+              </View>
+            ) : categories.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Chưa có danh mục (Count: {categories.length})</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={categories.slice(0, 6)} // Hiển thị 6 danh mục đầu tiên
+                renderItem={renderFeaturedCategory}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+            )}
+          </View>
+
+          {/* Manga từ MangaDX */}
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Manga 📚</Text>
+            {mangaLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Đang tải manga...</Text>
+              </View>
+            ) : mangaBooks.length === 0 ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Chưa có manga (Count: {mangaBooks.length})</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={mangaBooks.slice(0, 10)} // Hiển thị 10 manga đầu tiên
+                renderItem={renderManga}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+            )}
           </View>
 
           {/* Xem tất cả danh mục */}
@@ -179,6 +294,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <DevTools 
           visible={showDevTools} 
           onClose={() => setShowDevTools(false)}
+        />
+      )}
+      
+      {/* API Test Modal - CHỈ DÙNG ĐỂ DEBUG */}
+      {canUseApiTesting() && (
+        <ApiTest 
+          visible={showApiTest} 
+          onClose={() => setShowApiTest(false)}
         />
       )}
     </SafeAreaView>
@@ -312,6 +435,62 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+  },
+  apiTestButton: {
+    backgroundColor: '#8b5cf6',
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  // Manga styles
+  mangaItem: {
+    backgroundColor: color_1.surface,
+    borderRadius: 8,
+    marginRight: 12,
+    width: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  mangaImage: {
+    width: '100%',
+    height: 160,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: color_1.background,
+  },
+  mangaInfo: {
+    padding: 8,
+  },
+  mangaTitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: color_1.textPrimary,
+    marginBottom: 4,
+    lineHeight: 16,
+  },
+  mangaAuthor: {
+    fontSize: 10,
+    color: color_1.textSecondary,
+    marginBottom: 4,
+  },
+  mangaChapters: {
+    fontSize: 10,
+    color: color_1.primary,
+    fontWeight: '500',
+  },
+  // Loading styles
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: color_1.textSecondary,
   },
 });
 

@@ -13,13 +13,16 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 import { color_1 } from '../../constants/colors';
 import { comments_data, Document, UserComment } from '../../data/mockData';
+import type { RootState } from '../../store';
 
 interface ReaderScreenProps {
   route: {
     params: {
-      document: Document;
+      document: Document | any; // Support both Document and manga types
+      documentType?: 'book' | 'manga';
     };
   };
   navigation: any;
@@ -28,7 +31,7 @@ interface ReaderScreenProps {
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const ReaderScreen: React.FC<ReaderScreenProps> = ({ route, navigation }) => {
-  const { document } = route.params;
+  const { document, documentType } = route.params;
   const [fontSize, setFontSize] = useState(16);
   const [showSettings, setShowSettings] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -38,8 +41,35 @@ const ReaderScreen: React.FC<ReaderScreenProps> = ({ route, navigation }) => {
   );
   const scrollViewRef = useRef<ScrollView>(null);
 
+  // Get user state from Redux
+  const { user } = useSelector((state: RootState) => state.auth);
+  const isVip = user?.role === 'VIP' || user?.role === 'ADMIN';
+  const isLoggedIn = !!user;
+
   const handleDownload = () => {
-    if (document.access === 'VIP') {
+    // Đối với manga từ MangaDX, không cho phép download vì đây là nội dung online
+    if (document.id && document.id.length > 20) { // MangaDX IDs are longer
+      Alert.alert(
+        'Thông báo',
+        'Truyện tranh chỉ có thể đọc online. Vui lòng truy cập trang gốc để tải xuống.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!isLoggedIn) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Bạn cần đăng nhập để tải xuống tài liệu.',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          { text: 'Đăng nhập', onPress: () => navigation.navigate('Login') },
+        ]
+      );
+      return;
+    }
+
+    if (document.access === 'VIP' && !isVip) {
       Alert.alert(
         'Tài liệu VIP',
         'Bạn cần tài khoản VIP để tải tài liệu này. Nâng cấp ngay?',
@@ -139,11 +169,31 @@ const ReaderScreen: React.FC<ReaderScreenProps> = ({ route, navigation }) => {
         <View style={styles.documentDetails}>
           <Text style={styles.documentTitle}>{document.title}</Text>
           <Text style={styles.documentAuthor}>Tác giả: {document.author}</Text>
-          <Text style={styles.documentDescription}>{document.description}</Text>
-          <TouchableOpacity style={styles.downloadButton} onPress={handleDownload}>
-            <Ionicons name="download-outline" size={20} color={color_1.white} />
-            <Text style={styles.downloadButtonText}>Tải xuống</Text>
-          </TouchableOpacity>
+          {/* Show chapter count for manga */}
+          {(document as any).totalChapters && (
+            <Text style={styles.documentChapters}>
+              📚 {(document as any).totalChapters} chương
+            </Text>
+          )}
+          <Text style={styles.documentDescription} numberOfLines={3}>
+            {document.description}
+          </Text>
+          
+          {/* Conditional download button */}
+          {!(document.id && document.id.length > 20) && ( // Hide for manga
+            <TouchableOpacity style={styles.downloadButton} onPress={handleDownload}>
+              <Ionicons name="download-outline" size={20} color={color_1.white} />
+              <Text style={styles.downloadButtonText}>Tải xuống</Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* Show online reading notice for manga */}
+          {document.id && document.id.length > 20 && (
+            <View style={styles.onlineNotice}>
+              <Ionicons name="globe-outline" size={16} color={color_1.primary} />
+              <Text style={styles.onlineNoticeText}>Đọc trực tuyến</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -154,9 +204,53 @@ const ReaderScreen: React.FC<ReaderScreenProps> = ({ route, navigation }) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <Text style={[styles.contentText, { fontSize }]}>
-            {document.content}
-          </Text>
+          {/* Check if this is a manga with chapters */}
+          {(document as any).chapters && (document as any).chapters.length > 0 ? (
+            <View>
+              <Text style={styles.chaptersHeader}>Danh sách chương</Text>
+              {(document as any).chapters.map((chapter: any, index: number) => (
+                <TouchableOpacity 
+                  key={chapter.id} 
+                  style={styles.chapterItem}
+                  onPress={() => {
+                    Alert.alert(
+                      'Đọc chương',
+                      `Bạn muốn đọc ${chapter.title}?\n\nChương này sẽ được đọc trực tuyến từ MangaDX.`,
+                      [
+                        { text: 'Hủy', style: 'cancel' },
+                        { text: 'Đọc Online', onPress: () => {
+                          // Open MangaDX chapter URL
+                          const chapterUrl = `https://mangadx.org/chapter/${chapter.id}`;
+                          Alert.alert(
+                            'Mở trình duyệt',
+                            `Đang mở chương trong trình duyệt web:\n${chapterUrl}`,
+                            [{ text: 'OK' }]
+                          );
+                          // In production: Linking.openURL(chapterUrl);
+                        }},
+                      ]
+                    );
+                  }}
+                >
+                  <View style={styles.chapterInfo}>
+                    <Text style={styles.chapterTitle}>{chapter.title}</Text>
+                    <Text style={styles.chapterDetails}>
+                      Chương {chapter.chapter} • {chapter.pages} trang
+                    </Text>
+                    <Text style={styles.chapterDate}>
+                      {new Date(chapter.publishedAt).toLocaleDateString('vi-VN')}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={color_1.textSecondary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            // Traditional text content
+            <Text style={[styles.contentText, { fontSize }]}>
+              {document.content}
+            </Text>
+          )}
         </View>
       </ScrollView>
 
@@ -467,6 +561,63 @@ const styles = StyleSheet.create({
   sendButtonActive: {
     backgroundColor: color_1.primary + '20',
     borderRadius: 20,
+  },
+  documentChapters: {
+    fontSize: 14,
+    color: color_1.primary,
+    marginBottom: 4,
+    fontWeight: '600',
+  },
+  onlineNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: color_1.primary + '10',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  onlineNoticeText: {
+    fontSize: 12,
+    color: color_1.primary,
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  chaptersHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: color_1.textPrimary,
+    marginBottom: 16,
+    paddingHorizontal: 4,
+  },
+  chapterItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: color_1.background,
+    padding: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: color_1.border,
+  },
+  chapterInfo: {
+    flex: 1,
+  },
+  chapterTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: color_1.textPrimary,
+    marginBottom: 4,
+  },
+  chapterDetails: {
+    fontSize: 14,
+    color: color_1.textSecondary,
+    marginBottom: 2,
+  },
+  chapterDate: {
+    fontSize: 12,
+    color: color_1.textSecondary,
   },
 });
 

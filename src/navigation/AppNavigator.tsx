@@ -6,6 +6,7 @@ import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { color_1 } from '../constants/colors';
 import type { AppDispatch, RootState } from '../store';
+import LoggerService from '../utils/logger';
 
 // Import screens
 import LoginScreen from '../screens/Auth/LoginScreen';
@@ -100,6 +101,8 @@ const MainTabNavigator = () => {
 const AppNavigator = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { isAuthenticated, loading } = useSelector((state: RootState) => state.auth);
+
+  LoggerService.log('[AppNavigator] Auth state:', { isAuthenticated, loading });
 
   useEffect(() => {
     // Auto-login check will be handled by redux-persist rehydration

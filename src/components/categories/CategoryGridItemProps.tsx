@@ -2,7 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { color_1 } from '../../constants/colors';
-import { Category } from '../../data/mockData';
+
+// Define Category interface locally to match Redux state structure
+interface Category {
+  id: string;
+  title: string;
+  image: string;
+  icon: string;
+}
 
 interface CategoryGridItemProps {
   category: Category;
